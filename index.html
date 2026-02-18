@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>長輩貼心提醒</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .big-text { font-size: 1.5rem; }
+        .huge-text { font-size: 2rem; }
+        
+        .safe-area-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* 隱藏捲動條但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @keyframes ring {
+            0% { transform: rotate(0); }
+            10% { transform: rotate(5deg); }
+            20% { transform: rotate(-5deg); }
+            30% { transform: rotate(5deg); }
+            40% { transform: rotate(-5deg); }
+            50% { transform: rotate(0); }
+            100% { transform: rotate(0); }
+        }
+        .ringing {
+            animation: ring 0.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- 頂部標題 -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-2xl font-bold">長輩貼心提醒</h1>
+        <div id="status-dot" class="w-3 h-3 bg-green-400 rounded-full"></div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="flex-1 overflow-y-auto pb-24">
+        
+        <!-- 提醒列表介面 -->
+        <div id="view-list" class="space-y-4 p-4">
+            
+            <!-- 未來一週預告區 (視覺增強) -->
+            <div id="upcoming-section" class="mb-6">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <h2 class="text-xl font-bold text-orange-600 flex items-center">
+                        <svg class="w-6 h-6 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"></path></svg>
+                        心裡有個準備（未來一週）
+                    </h2>
+                </div>
+                <div id="upcoming-container" class="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
+                    <!-- 預告卡片動態插入 -->
+                </div>
+            </div>
+
+            <hr class="border-gray-300">
+
+            <!-- 日期導航 -->
+            <div class="flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm my-4">
+                <button onclick="changeViewDate(-1)" class="p-2 text-blue-600 active:scale-90">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="text-center">
+                    <div id="display-date" class="text-2xl font-black text-gray-800">載入中...</div>
+                    <button onclick="goToday()" class="text-blue-500 font-bold text-lg">回到今天</button>
+                </div>
+                <button onclick="changeViewDate(1)" class="p-2 text-blue-600 active:scale-90">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+
+            <h2 class="text-xl font-bold text-gray-700 px-1">該日提醒清單</h2>
+            <div id="reminder-container" class="space-y-3">
+                <p class="text-gray-500 text-center py-10">讀取中...</p>
+            </div>
+        </div>
+
+        <!-- 新增/修改提醒介面 -->
+        <div id="view-add" class="hidden space-y-6 p-4">
+            <h2 id="add-view-title" class="text-xl font-bold text-gray-700">設定新提醒</h2>
+            <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                <div>
+                    <label class="block text-gray-600 mb-1">提醒內容</label>
+                    <input type="text" id="input-title" placeholder="例如：吃降血壓藥" class="w-full p-4 border-2 border-gray-200 rounded-xl big-text focus:border-blue-500 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-600 mb-1">日期</label>
+                        <input type="date" id="input-date" class="w-full p-4 border-2 border-gray-200 rounded-xl big-text outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-1">時間</label>
+                        <input type="time" id="input-time" class="w-full p-4 border-2 border-gray-200 rounded-xl big-text outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-600 mb-1">重複設定</label>
+                    <select id="input-repeat" class="w-full p-4 border-2 border-gray-200 rounded-xl big-text outline-none bg-white">
+                        <option value="once">只提醒一次</option>
+                        <option value="daily">每天提醒</option>
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <button id="btn-cancel-edit" onclick="cancelEdit()" class="flex-1 bg-gray-200 text-gray-700 py-4 rounded-xl big-text font-bold hidden">
+                        取消
+                    </button>
+                    <button id="btn-save" onclick="saveReminder()" class="flex-[2] bg-blue-600 text-white py-4 rounded-xl huge-text font-bold shadow-lg active:bg-blue-700">
+                        確認存檔
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部導航欄 -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center safe-area-bottom shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button onclick="switchView('list')" id="nav-list" class="flex-1 py-4 flex flex-col items-center text-blue-600 font-bold">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <span class="text-sm">查看提醒</span>
+        </button>
+        <button onclick="switchView('add')" id="nav-add" class="flex-1 py-4 flex flex-col items-center text-gray-400 font-bold">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span class="text-sm">新增提醒</span>
+        </button>
+    </nav>
+
+    <!-- 鬧鈴全螢幕彈窗 -->
+    <div id="alarm-modal" class="fixed inset-0 bg-red-600 z-50 flex flex-col items-center justify-center p-6 text-white hidden">
+        <div class="mb-10 ringing">
+            <svg class="w-32 h-32" fill="white" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path></svg>
+        </div>
+        <h2 class="huge-text font-bold mb-2">時間到了！</h2>
+        <div id="alarm-title" class="text-4xl font-black mb-12 text-center">該吃藥囉</div>
+        <button onclick="stopAlarm()" class="w-full max-w-sm bg-white text-red-600 py-8 rounded-full text-4xl font-black shadow-2xl active:scale-95 transition-transform">
+            按這裡關閉
+        </button>
+    </div>
+
+    <script>
+        let reminders = JSON.parse(localStorage.getItem('reminders') || '[]');
+        let currentViewDate = new Date().toISOString().split('T')[0];
+        let editModeId = null;
+        let audioContext = null;
+        let alarmInterval = null;
+
+        window.onload = () => {
+            updateDisplayDate();
+            renderReminders();
+            renderUpcomingHighlights();
+            
+            if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+                navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW error:', err.message));
+            }
+
+            setInterval(() => {
+                checkAlarms();
+                renderReminders();
+                renderUpcomingHighlights();
+            }, 10000);
+            
+            document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+        };
+
+        // --- 視覺增強：未來一週預告 ---
+        function renderUpcomingHighlights() {
+            const container = document.getElementById('upcoming-container');
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const nextWeek = new Date();
+            nextWeek.setDate(now.getDate() + 7);
+            const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+            const upcoming = reminders.filter(r => {
+                return r.enabled && r.date > todayStr && r.date <= nextWeekStr;
+            }).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+            if (upcoming.length === 0) {
+                container.innerHTML = `
+                    <div class="flex-shrink-0 w-64 bg-orange-50 p-4 rounded-2xl border-2 border-dashed border-orange-200 flex items-center justify-center">
+                        <p class="text-orange-400 font-bold">未來一週沒有重要事項</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = upcoming.map(r => {
+                const eventDate = new Date(r.date);
+                const diffTime = Math.abs(eventDate - new Date(todayStr));
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                let dayLabel = `還有 ${diffDays} 天`;
+                if (diffDays === 1) dayLabel = "就在明天！";
+
+                return `
+                    <div onclick="jumpToDate('${r.date}')" class="flex-shrink-0 w-48 bg-orange-500 text-white p-4 rounded-2xl shadow-md active:scale-95 transition-transform">
+                        <div class="text-xs font-bold bg-orange-700 w-max px-2 py-0.5 rounded-full mb-2">${dayLabel}</div>
+                        <div class="text-xl font-bold truncate">${r.title}</div>
+                        <div class="text-sm opacity-90">${r.date.split('-')[1]}/${r.date.split('-')[2]} (${r.time})</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function jumpToDate(date) {
+            currentViewDate = date;
+            updateDisplayDate();
+            renderReminders();
+            document.getElementById('display-date').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- 日期導航 ---
+        function updateDisplayDate() {
+            // 加入星期計算
+            const dateObj = new Date(currentViewDate);
+            const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const weekDayLabel = weekDays[dateObj.getDay()];
+            
+            document.getElementById('display-date').innerText = `${currentViewDate} (${weekDayLabel})`;
+        }
+
+        function changeViewDate(days) {
+            let d = new Date(currentViewDate);
+            d.setDate(d.getDate() + days);
+            currentViewDate = d.toISOString().split('T')[0];
+            updateDisplayDate();
+            renderReminders();
+        }
+
+        function goToday() {
+            currentViewDate = new Date().toISOString().split('T')[0];
+            updateDisplayDate();
+            renderReminders();
+        }
+
+        // --- 視圖切換 ---
+        function switchView(view) {
+            const listV = document.getElementById('view-list');
+            const addV = document.getElementById('view-add');
+            const navL = document.getElementById('nav-list');
+            const navA = document.getElementById('nav-add');
+
+            if (view === 'list') {
+                listV.classList.remove('hidden');
+                addV.classList.add('hidden');
+                navL.className = "flex-1 py-4 flex flex-col items-center text-blue-600 font-bold";
+                navA.className = "flex-1 py-4 flex flex-col items-center text-gray-400 font-bold";
+                cancelEdit();
+                renderReminders();
+                renderUpcomingHighlights();
+            } else {
+                listV.classList.add('hidden');
+                addV.classList.remove('hidden');
+                navA.className = "flex-1 py-4 flex flex-col items-center text-blue-600 font-bold";
+                navL.className = "flex-1 py-4 flex flex-col items-center text-gray-400 font-bold";
+            }
+        }
+
+        // --- 資料操作 ---
+        function saveReminder() {
+            const title = document.getElementById('input-title').value;
+            const date = document.getElementById('input-date').value;
+            const time = document.getElementById('input-time').value;
+            const repeat = document.getElementById('input-repeat').value;
+
+            if (!title || !date || !time) {
+                alert("請填寫完整的提醒內容與時間喔！");
+                return;
+            }
+
+            if (editModeId) {
+                const idx = reminders.findIndex(r => r.id === editModeId);
+                if (idx !== -1) {
+                    reminders[idx] = { ...reminders[idx], title, date, time, repeat, enabled: true };
+                }
+            } else {
+                const newReminder = {
+                    id: Date.now(),
+                    title, date, time, repeat,
+                    enabled: true,
+                    lastTriggered: null
+                };
+                reminders.push(newReminder);
+            }
+
+            localStorage.setItem('reminders', JSON.stringify(reminders));
+            cancelEdit();
+            switchView('list');
+        }
+
+        function editReminder(id) {
+            const r = reminders.find(item => item.id === id);
+            if (!r) return;
+            editModeId = id;
+            document.getElementById('add-view-title').innerText = "修改提醒內容";
+            document.getElementById('input-title').value = r.title;
+            document.getElementById('input-date').value = r.date;
+            document.getElementById('input-time').value = r.time;
+            document.getElementById('input-repeat').value = r.repeat;
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+            document.getElementById('btn-save').innerText = "確認修改";
+            switchView('add');
+        }
+
+        function cancelEdit() {
+            editModeId = null;
+            document.getElementById('add-view-title').innerText = "設定新提醒";
+            document.getElementById('input-title').value = '';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+            document.getElementById('btn-save').innerText = "確認存檔";
+        }
+
+        function deleteReminder(id) {
+            if (confirm("確定要刪除這個提醒嗎？")) {
+                reminders = reminders.filter(r => r.id !== id);
+                localStorage.setItem('reminders', JSON.stringify(reminders));
+                renderReminders();
+                renderUpcomingHighlights();
+            }
+        }
+
+        function renderReminders() {
+            const container = document.getElementById('reminder-container');
+            const now = new Date();
+            const nowDate = now.toISOString().split('T')[0];
+            const nowTime = now.toTimeString().slice(0, 5);
+            
+            const filtered = reminders.filter(r => {
+                return r.date === currentViewDate || r.repeat === 'daily';
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-center py-10 big-text">這天沒有提醒項目</p>`;
+                return;
+            }
+
+            container.innerHTML = filtered.sort((a,b) => a.time.localeCompare(b.time)).map(r => {
+                const isPast = (r.date < nowDate) || (r.date === nowDate && r.time < nowTime);
+                const isExecuted = !r.enabled || isPast;
+                const bgColor = isExecuted ? 'bg-[#E0E0E0]' : 'bg-white';
+                const borderColor = r.enabled && !isPast ? 'border-blue-500' : 'border-gray-400';
+
+                return `
+                    <div class="${bgColor} p-5 rounded-2xl shadow-sm border-l-8 ${borderColor} flex justify-between items-center transition-colors">
+                        <div class="flex-1">
+                            <div class="text-2xl font-bold ${isExecuted ? 'text-gray-500' : 'text-gray-800'}">${r.title}</div>
+                            <div class="text-lg ${isExecuted ? 'text-gray-400' : 'text-gray-500'}">
+                                ${r.time} ${r.repeat === 'daily' ? '<span class="text-blue-500">(每天)</span>' : ''}
+                                ${isExecuted ? ' <span class="text-sm">(已執行)</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editReminder(${r.id})" class="bg-blue-50 p-3 rounded-xl text-blue-600">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="deleteReminder(${r.id})" class="bg-red-50 p-3 rounded-xl text-red-500">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function checkAlarms() {
+            const now = new Date();
+            const nowDate = now.toISOString().split('T')[0];
+            const nowTime = now.toTimeString().slice(0, 5);
+
+            reminders.forEach(r => {
+                if (!r.enabled) return;
+                const isToday = r.date === nowDate || r.repeat === 'daily';
+                const isTime = r.time === nowTime;
+                const alreadyTriggered = r.lastTriggered === nowDate + ' ' + nowTime;
+                if (isToday && isTime && !alreadyTriggered) triggerAlarm(r);
+            });
+        }
+
+        function triggerAlarm(reminder) {
+            document.getElementById('alarm-title').innerText = reminder.title;
+            document.getElementById('alarm-modal').classList.remove('hidden');
+            reminder.lastTriggered = new Date().toISOString().split('T')[0] + ' ' + reminder.time;
+            if (reminder.repeat === 'once') reminder.enabled = false;
+            localStorage.setItem('reminders', JSON.stringify(reminders));
+            startBeeper();
+            renderReminders();
+            renderUpcomingHighlights();
+        }
+
+        function startBeeper() {
+            try {
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') audioContext.resume();
+                const playBeep = () => {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(880, audioContext.currentTime);
+                    gain.gain.setValueAtTime(0.5, audioContext.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    osc.start();
+                    osc.stop(audioContext.currentTime + 0.5);
+                };
+                playBeep();
+                if (alarmInterval) clearInterval(alarmInterval);
+                alarmInterval = setInterval(playBeep, 1000);
+            } catch (e) { console.error("Sound error:", e); }
+        }
+
+        function stopAlarm() {
+            if (alarmInterval) clearInterval(alarmInterval);
+            document.getElementById('alarm-modal').classList.add('hidden');
+            renderReminders();
+            renderUpcomingHighlights();
+        }
+    </script>
+</body>
+</html>
